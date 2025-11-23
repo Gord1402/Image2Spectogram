@@ -69,12 +69,14 @@
         <div class="panel">
             <h2>🖼️ Image & Transform</h2>
             <input type="file" id="imageInput" accept="image/*">
+            <input type="text" id="textInput" placeholder="Enter text to render as image (e.g., 'HELLO')" style="width:100%; margin:8px 0;">
             <div class="preview">
                 <canvas id="previewCanvas" width="400" height="200"></canvas>
             </div>
             <label>Transform:</label>
             <select id="transform">
                 <option value="none">None</option>
+                <option value="mirrorRot" selected>Mirror Horizontal And Rotate</option>
                 <option value="mirrorH">Mirror Horizontal</option>
                 <option value="mirrorV">Mirror Vertical</option>
                 <option value="rotate90">Rotate 90°</option>
@@ -225,6 +227,42 @@
 
         let originalImageData = null;
 
+        // Text-to-image
+        // Text-to-image (FIXED)
+document.getElementById('textInput').addEventListener('input', (e) => {
+    const text = e.target.value.trim();
+    if (!text) return;
+
+    // Create OFFSCREEN canvas (don't reuse preview ctx!)
+    const offscreen = document.createElement('canvas');
+    const offCtx = offscreen.getContext('2d');
+    
+    offCtx.font = 'bold 48px Arial, sans-serif';
+    const metrics = offCtx.measureText(text);
+    const width = Math.min(Math.ceil(metrics.width) + 40, 512);
+    const height = 80;
+
+    offscreen.width = width;
+    offscreen.height = height;
+
+    // Clear and draw: black bg, white text
+    offCtx.fillStyle = '#000';
+    offCtx.fillRect(0, 0, width, height);
+    offCtx.fillStyle = '#fff';
+    offCtx.font = 'bold 48px Arial, sans-serif';
+    offCtx.textBaseline = 'middle';
+    offCtx.textAlign = 'center';
+    offCtx.fillText(text, width / 2, height / 2);
+
+    // Update preview
+    previewCanvas.width = width;
+    previewCanvas.height = height;
+    ctx.drawImage(offscreen, 0, 0);  // ← uses global ctx = previewCanvas.getContext('2d')
+
+    // Save image data
+    originalImageData = ctx.getImageData(0, 0, width, height);
+    statusDiv.textContent = `✅ Text rendered: "${text}"`;
+});
         // Load image
         imageInput.addEventListener('change', (e) => {
             const file = e.target.files?.[0];
@@ -257,7 +295,7 @@
         function transformImageData(imgData, mode) {
             const { width, height, data } = imgData;
             let newW = width, newH = height;
-            if (mode.includes('rotate')) [newW, newH] = [height, width];
+            if (mode.includes('rotate') && mode != "rotate180") [newW, newH] = [height, width];
 
             const newData = new Uint8ClampedArray(newW * newH * 4);
             const out = new ImageData(newData, newW, newH);
@@ -271,6 +309,7 @@
                     switch (mode) {
                         case 'mirrorH': nx = width - 1 - x; break;
                         case 'mirrorV': ny = height - 1 - y; break;
+                        case 'mirrorRot':nx = x; ny = height - 1 - y; break;
                         case 'rotate90': nx = height - 1 - y; ny = x; break;
                         case 'rotate180': nx = width - 1 - x; ny = height - 1 - y; break;
                         case 'rotate270': nx = y; ny = width - 1 - x; break;
