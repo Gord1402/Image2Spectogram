@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>✅ Image → Spectrogram Audio (Working!)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+        h1 { text-align: center; color: #0f172a; margin-bottom: 8px; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 24px; }
+        .container { display: flex; flex-wrap: wrap; gap: 20px; }
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            flex: 1;
+            min-width: 300px;
+        }
+        label { display: block; margin: 12px 0 6px; font-weight: 600; }
+        input[type="range"], input[type="number"], select {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+        button:hover:not(:disabled) { background: #0284c7; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        canvas {
+            width: 100%;
+            height: auto;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            display: block;
+        }
+        audio { width: 100%; margin-top: 12px; }
+        .status {
+            margin-top: 12px;
+            padding: 10px;
+            background: #ecfeff;
+            border-left: 4px solid #06b6d4;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .preview { text-align: center; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🎨 Image → 🎵 Spectrogram Audio</h1>
+    <p class="subtitle">Now 100% self-contained & silent-free! ✅</p>
+
+    <div class="container">
+        <div class="panel">
+            <h2>🖼️ Image & Transform</h2>
+            <input type="file" id="imageInput" accept="image/*">
+            <div class="preview">
+                <canvas id="previewCanvas" width="400" height="200"></canvas>
+            </div>
+            <label>Transform:</label>
+            <select id="transform">
+                <option value="none">None</option>
+                <option value="mirrorH">Mirror Horizontal</option>
+                <option value="mirrorV">Mirror Vertical</option>
+                <option value="rotate90">Rotate 90°</option>
+                <option value="rotate180">Rotate 180°</option>
+                <option value="rotate270">Rotate 270°</option>
+            </select>
+        </div>
+
+        <div class="panel">
+            <h2>🎛️ Parameters</h2>
+            <label>Min Frequency (Hz): <span id="minFreqLabel">100</span></label>
+            <input type="range" id="minFreq" min="20" max="5000" value="100">
+            <input type="number" id="minFreqNum" min="20" max="20000" value="100" step="10">
+
+            <label>Max Frequency (Hz): <span id="maxFreqLabel">3000</span></label>
+            <input type="range" id="maxFreq" min="200" max="16000" value="3000">
+            <input type="number" id="maxFreqNum" min="200" max="20000" value="3000" step="100">
+
+            <label>Duration (s): <span id="durationLabel">3.0</span></label>
+            <input type="range" id="duration" min="1" max="30" step="0.5" value="3">
+            <input type="number" id="durationNum" min="1" max="30" value="3" step="0.5">
+
+            <label>Gain: <span id="gainLabel">0.9</span></label>
+            <input type="range" id="gain" min="0.1" max="2" step="0.05" value="0.9">
+            <input type="number" id="gainNum" min="0.1" max="5" value="0.9" step="0.1">
+
+            <button id="synthesizeBtn">🔊 Synthesize Audio</button>
+            <div class="status" id="status">✅ Ready. Upload an image to begin.</div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 20px;">
+        <h2>🎧 Output</h2>
+        <audio id="audioOutput" controls></audio>
+        <button id="downloadBtn" disabled>📥 Download WAV</button>
+    </div>
+
+    <script>
+        // ———————— UTILS ————————
+        function writeString(view, offset, str) {
+            for (let i = 0; i < str.length; i++) {
+                view.setUint8(offset + i, str.charCodeAt(i));
+            }
+        }
+
+        // ✅ Correct IFFT (in-place, radix-2, no external deps)
+        function ifft(real, imag) {
+            const N = real.length;
+            if (N <= 1) return;
+
+            // Bit-reversal permutation
+            for (let i = 0, j = 0; i < N; i++) {
+                if (j > i) {
+                    [real[i], real[j]] = [real[j], real[i]];
+                    [imag[i], imag[j]] = [imag[j], imag[i]];
+                }
+                let m = N >> 1;
+                while (m >= 1 && j >= m) {
+                    j -= m;
+                    m >>= 1;
+                }
+                j += m;
+            }
+
+            // Butterfly stages
+            for (let len = 2; len <= N; len <<= 1) {
+                const half = len >> 1;
+                const theta = 2 * Math.PI / len; // + for IFFT
+                const cos = Math.cos(theta);
+                const sin = Math.sin(theta);
+
+                for (let i = 0; i < N; i += len) {
+                    let wRe = 1, wIm = 0;
+                    for (let j = 0; j < half; j++) {
+                        const k = i + j;
+                        const k2 = k + half;
+
+                        const re1 = real[k];
+                        const im1 = imag[k];
+                        const re2 = real[k2];
+                        const im2 = imag[k2];
+
+                        const tempRe = wRe * re2 - wIm * im2;
+                        const tempIm = wRe * im2 + wIm * re2;
+
+                        real[k] = re1 + tempRe;
+                        imag[k] = im1 + tempIm;
+                        real[k2] = re1 - tempRe;
+                        imag[k2] = im1 - tempIm;
+
+                        // Update twiddle: w *= e^{i*theta}
+                        const tRe = wRe * cos - wIm * sin;
+                        const tIm = wRe * sin + wIm * cos;
+                        wRe = tRe;
+                        wIm = tIm;
+                    }
+                }
+            }
+
+            // Normalize
+            for (let i = 0; i < N; i++) {
+                real[i] /= N;
+                imag[i] /= N;
+            }
+        }
+
+        // ———————— MAIN ————————
+        const imageInput = document.getElementById('imageInput');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const ctx = previewCanvas.getContext('2d');
+        const transformSelect = document.getElementById('transform');
+        const statusDiv = document.getElementById('status');
+        const synthesizeBtn = document.getElementById('synthesizeBtn');
+        const audioOutput = document.getElementById('audioOutput');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // Sliders
+        const config = {
+            minFreq: { el: document.getElementById('minFreq'), num: document.getElementById('minFreqNum'), label: document.getElementById('minFreqLabel'), val: 100 },
+            maxFreq: { el: document.getElementById('maxFreq'), num: document.getElementById('maxFreqNum'), label: document.getElementById('maxFreqLabel'), val: 3000 },
+            duration: { el: document.getElementById('duration'), num: document.getElementById('durationNum'), label: document.getElementById('durationLabel'), val: 3 },
+            gain: { el: document.getElementById('gain'), num: document.getElementById('gainNum'), label: document.getElementById('gainLabel'), val: 0.9 }
+        };
+
+        // Sync sliders
+        Object.values(config).forEach(s => {
+            const update = () => {
+                s.val = parseFloat(s.el.value);
+                s.num.value = s.val;
+                s.label.textContent = s.val;
+                // Enforce min ≤ max
+                if (s === config.minFreq && s.val > config.maxFreq.val) {
+                    config.maxFreq.el.value = s.val;
+                    config.maxFreq.val = s.val;
+                    config.maxFreq.num.value = s.val;
+                    config.maxFreq.label.textContent = s.val;
+                } else if (s === config.maxFreq && s.val < config.minFreq.val) {
+                    config.minFreq.el.value = s.val;
+                    config.minFreq.val = s.val;
+                    config.minFreq.num.value = s.val;
+                    config.minFreq.label.textContent = s.val;
+                }
+            };
+            s.el.addEventListener('input', update);
+            s.num.addEventListener('change', () => { s.el.value = s.num.value; update(); });
+            update();
+        });
+
+        let originalImageData = null;
+
+        // Load image
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            statusDiv.textContent = '📄 Loading image...';
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(url);
+                // Resize to ≤512px (perf)
+                const maxSize = 512;
+                let w = img.width, h = img.height;
+                if (w > maxSize || h > maxSize) {
+                    const ratio = Math.min(maxSize / w, maxSize / h);
+                    w = Math.floor(w * ratio);
+                    h = Math.floor(h * ratio);
+                }
+                previewCanvas.width = w;
+                previewCanvas.height = h;
+                ctx.drawImage(img, 0, 0, w, h);
+                originalImageData = ctx.getImageData(0, 0, w, h);
+                statusDiv.textContent = `✅ Loaded: ${w}×${h} px`;
+            };
+            img.onerror = () => statusDiv.textContent = '❌ Image load failed';
+            img.src = url;
+        });
+
+        // Transform image
+        function transformImageData(imgData, mode) {
+            const { width, height, data } = imgData;
+            let newW = width, newH = height;
+            if (mode.includes('rotate')) [newW, newH] = [height, width];
+
+            const newData = new Uint8ClampedArray(newW * newH * 4);
+            const out = new ImageData(newData, newW, newH);
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const idx = (y * width + x) * 4;
+                    const gray = 0.299 * data[idx] + 0.587 * data[idx+1] + 0.114 * data[idx+2];
+
+                    let nx = x, ny = y;
+                    switch (mode) {
+                        case 'mirrorH': nx = width - 1 - x; break;
+                        case 'mirrorV': ny = height - 1 - y; break;
+                        case 'rotate90': nx = height - 1 - y; ny = x; break;
+                        case 'rotate180': nx = width - 1 - x; ny = height - 1 - y; break;
+                        case 'rotate270': nx = y; ny = width - 1 - x; break;
+                    }
+
+                    const nidx = (ny * newW + nx) * 4;
+                    newData[nidx] = newData[nidx+1] = newData[nidx+2] = gray;
+                    newData[nidx+3] = 255;
+                }
+            }
+            return out;
+        }
+
+        // Synthesize audio from ImageData
+        async function synthesize() {
+            if (!originalImageData) throw new Error("No image loaded");
+
+            const { minFreq, maxFreq, duration, gain } = config;
+            const sampleRate = 44100;
+            const totalSamples = Math.floor(sampleRate * duration.val);
+            const frameSize = 2048;
+            const hopSize = frameSize >> 2; // 512
+            const numFrames = Math.ceil(totalSamples / hopSize);
+
+            // Resize image in time to numFrames
+            const tempCanvas = document.createElement('canvas');
+            const tctx = tempCanvas.getContext('2d');
+            tempCanvas.width = numFrames;
+            tempCanvas.height = originalImageData.height;
+            tctx.drawImage(
+                (() => {
+                    const c = document.createElement('canvas');
+                    c.width = originalImageData.width;
+                    c.height = originalImageData.height;
+                    c.getContext('2d').putImageData(originalImageData, 0, 0);
+                    return c;
+                })(),
+                0, 0, originalImageData.width, originalImageData.height,
+                0, 0, numFrames, originalImageData.height
+            );
+            let imgData = tctx.getImageData(0, 0, numFrames, originalImageData.height);
+
+            // Apply transform
+            const mode = transformSelect.value;
+            if (mode !== 'none') {
+                imgData = transformImageData(imgData, mode);
+            }
+            const { width: W, height: H } = imgData;
+
+            // Build magnitude spectrogram: mag[frame][bin]
+            const mag = new Float32Array(numFrames * (frameSize/2 + 1));
+            for (let frame = 0; frame < numFrames; frame++) {
+                for (let y = 0; y < H; y++) {
+                    const idx = (y * W + frame) * 4;
+                    const brightness = imgData.data[idx] / 255;
+                    const freq = minFreq.val + (maxFreq.val - minFreq.val) * (1 - y / (H - 1));
+                    // Map freq → bin
+                    const bin = Math.round(freq * frameSize / sampleRate);
+                    if (bin <= frameSize/2) {
+                        const pos = frame * (frameSize/2 + 1) + bin;
+                        mag[pos] = Math.max(mag[pos], brightness * gain.val);
+                    }
+                }
+            }
+
+            // ISTFT with random phase
+            const output = new Float32Array(totalSamples);
+            const real = new Float32Array(frameSize);
+            const imag = new Float32Array(frameSize);
+
+            for (let frame = 0; frame < numFrames; frame++) {
+                // Reset buffers
+                real.fill(0);
+                imag.fill(0);
+
+                // Set magnitude + random phase
+                for (let k = 0; k <= frameSize/2; k++) {
+                    const amp = mag[frame * (frameSize/2 + 1) + k] || 0;
+                    const phase = Math.random() * 2 * Math.PI;
+                    real[k] = amp * Math.cos(phase);
+                    imag[k] = amp * Math.sin(phase);
+                    if (k > 0 && k < frameSize/2) {
+                        real[frameSize - k] = real[k];
+                        imag[frameSize - k] = -imag[k];
+                    }
+                }
+
+                // ✅ IFFT — this is the fix!
+                ifft(real, imag);
+
+                // Overlap-add
+                const start = frame * hopSize;
+                const scale = 0.8 / Math.sqrt(frameSize); // prevent clipping
+                for (let i = 0; i < frameSize && start + i < totalSamples; i++) {
+                    output[start + i] += real[i] * scale;
+                }
+            }
+
+            // Normalize
+            let maxVal = 0;
+            for (let v of output) maxVal = Math.max(maxVal, Math.abs(v));
+            if (maxVal > 1e-6) {
+                for (let i = 0; i < output.length; i++) {
+                    output[i] /= maxVal;
+                }
+            }
+
+            // Create AudioBuffer
+            const OfflineAudioContext = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+            const audioCtx = new OfflineAudioContext(1, totalSamples, sampleRate);
+            const buffer = audioCtx.createBuffer(1, totalSamples, sampleRate);
+            buffer.copyToChannel(output, 0);
+            return buffer;
+        }
+
+        // AudioBuffer → WAV Blob
+        function bufferToWave(buffer) {
+            const length = buffer.length;
+            const channels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+
+            const headerLen = 44;
+            const bytes = new Uint8Array(headerLen + length * channels * 2);
+            const view = new DataView(bytes.buffer);
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + length * channels * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, channels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * channels * 2, true);
+            view.setUint16(32, channels * 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, length * channels * 2, true);
+
+            const chData = [];
+            for (let i = 0; i < channels; i++) chData[i] = buffer.getChannelData(i);
+            let offset = 44;
+            for (let i = 0; i < length; i++) {
+                for (let ch = 0; ch < channels; ch++) {
+                    const x = Math.max(-1, Math.min(1, chData[ch][i]));
+                    view.setInt16(offset, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+                    offset += 2;
+                }
+            }
+            return new Blob([bytes], { type: 'audio/wav' });
+        }
+
+        // ———————— UI EVENTS ————————
+        synthesizeBtn.addEventListener('click', async () => {
+            synthesizeBtn.disabled = true;
+            statusDiv.textContent = '🔧 Processing... (10-20 sec)';
+            try {
+                const buffer = await synthesize();
+                const blob = bufferToWave(buffer);
+                const url = URL.createObjectURL(blob);
+                audioOutput.src = url;
+                downloadBtn.disabled = false;
+                statusDiv.textContent = '✅ Done! Click ▶️ to play.';
+            } catch (err) {
+                statusDiv.textContent = `❌ Error: ${err.message}`;
+                console.error(err);
+            } finally {
+                synthesizeBtn.disabled = false;
+            }
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (!audioOutput.src) return;
+            const a = document.createElement('a');
+            a.href = audioOutput.src;
+            a.download = `spectrogram-audio-${new Date().toISOString().slice(5,16).replace(/-/g,'').replace(/:/g,'')}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+    </script>
+</body>
+</html>
+
+<!-- Save this as test.png -->
+<svg width="256" height="128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="black"/>
+      <stop offset="100%" stop-color="white"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#grad)"/>
+</svg>
+
