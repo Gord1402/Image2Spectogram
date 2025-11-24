@@ -10,126 +10,202 @@
         .container { max-width: 900px; margin: 0 auto; width: 100%; }
         header { text-align: center; margin-bottom: 20px; }
         h1 { color: #94a3b8; font-weight: 600; margin-bottom: 8px; }
-        .status { padding: 12px; background: #1e293b; border-radius: 8px; display: flex; justify-content: space-between; }
+        .mic-prompt {
+            padding: 30px;
+            text-align: center;
+            background: #1e293b;
+            border-radius: 12px;
+            margin: 20px 0;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .mic-prompt h2 { margin-bottom: 12px; color: #cbd5e1; }
+        .mic-prompt p { margin: 8px 0; color: #94a3b8; max-width: 600px; margin-left: auto; margin-right: auto; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 16px;
+            font-size: 1.05rem;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #2563eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .error { color: #ef4444; }
+        .success { color: #10b981; }
+        
+        .status {
+            padding: 12px; background: #1e293b; border-radius: 8px; display: flex; justify-content: space-between;
+            margin-bottom: 16px;
+        }
         .status-item { display: flex; align-items: center; gap: 8px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; }
         .online { background: #10b981; }
         .offline { background: #ef4444; }
-        .chat-container { flex: 1; background: #1e293b; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
-        .messages { flex: 1; padding: 20px; overflow-y: auto; }
-        .message { margin-bottom: 16px; padding: 14px; border-radius: 10px; max-width: 80%; }
+        .chat-container {
+            flex: 1; background: #1e293b; border-radius: 12px; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+        .messages {
+            flex: 1; padding: 20px; overflow-y: auto;
+            display: flex; flex-direction: column;
+        }
+        .message {
+            margin-bottom: 16px; padding: 14px; border-radius: 10px; max-width: 80%;
+            word-wrap: break-word;
+        }
         .self { background: #334155; margin-left: auto; }
         .other { background: #475569; }
-        .message-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
+        .system { background: #475569; border-left: 3px solid #3b82f6; }
+        .message-header {
+            display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem;
+        }
         .sender { font-weight: 600; color: #94a3b8; }
         .timestamp { color: #64748b; }
         .message-content { line-height: 1.5; }
-        .input-area { display: flex; gap: 10px; padding: 16px; background: #334155; }
-        textarea { flex: 1; padding: 14px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; resize: none; }
-        button { padding: 14px 24px; border: none; border-radius: 8px; background: #3b82f6; color: white; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #2563eb; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .instructions { margin-top: 20px; padding: 16px; background: #1e293b; border-radius: 8px; font-size: 0.9rem; }
+        .input-area {
+            display: flex; gap: 10px; padding: 16px; background: #334155;
+        }
+        textarea {
+            flex: 1; padding: 14px; border-radius: 8px; border: 1px solid #475569;
+            background: #0f172a; color: #e2e8f0; resize: none; height: 56px;
+            font-size: 1rem;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        button#send-btn {
+            padding: 14px 24px; border: none; border-radius: 8px; background: #3b82f6;
+            color: white; font-weight: 600; cursor: pointer; transition: background 0.2s;
+            align-self: flex-end;
+        }
+        button#send-btn:hover { background: #2563eb; }
+        button#send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .instructions {
+            margin-top: 20px; padding: 16px; background: #1e293b; border-radius: 8px; font-size: 0.9rem;
+        }
         .instructions h3 { margin-bottom: 10px; color: #94a3b8; }
         .instructions ul { padding-left: 20px; }
-        .instructions li { margin-bottom: 8px; }
-        .error { color: #ef4444; margin-top: 8px; }
+        .instructions li { margin-bottom: 8px; color: #cbd5e1; }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Ultrasonic Chat</h1>
-            <p>Send messages via inaudible sound (15-20 kHz)</p>
+            <h1>🔊 Ultrasonic Chat</h1>
+            <p>Send messages via inaudible sound (15–20 kHz)</p>
         </header>
 
-        <div class="status">
-            <div class="status-item">
-                <div class="dot online"></div>
-                <span>Microphone: <span id="mic-status">Active</span></span>
-            </div>
-            <div class="status-item">
-                <span>Client ID: <span id="client-id">-</span></span>
-            </div>
+        <!-- Microphone Prompt -->
+        <div id="mic-prompt" class="mic-prompt">
+            <h2>🔓 Microphone Access Required</h2>
+            <p>To receive messages from other devices, this app needs microphone access.</p>
+            <p><strong>Note:</strong> You must serve this page via <code>http://localhost</code> (not <code>file://</code>).</p>
+            <button id="mic-btn" class="btn">👉 Grant Microphone Access</button>
+            <p id="mic-error" class="error"></p>
         </div>
 
-        <div class="chat-container">
-            <div class="messages" id="messages"></div>
-            <div class="input-area">
-                <textarea id="message-input" placeholder="Type your message..."></textarea>
-                <button id="send-btn">Send</button>
+        <!-- Chat UI (hidden until mic granted) -->
+        <div id="chat-ui" class="hidden">
+            <div class="status">
+                <div class="status-item">
+                    <div class="dot online" id="mic-dot"></div>
+                    <span>Microphone: <span id="mic-status-text">Active</span></span>
+                </div>
+                <div class="status-item">
+                    <span>Client ID: <span id="client-id">-</span></span>
+                </div>
             </div>
-        </div>
 
-        <div class="instructions">
-            <h3>How it works:</h3>
-            <ul>
-                <li>Messages are encoded into ultrasonic frequencies (15-20 kHz)</li>
-                <li>Uses FSK modulation with Hamming(7,4) error correction</li>
-                <li>Each client has a unique ID to prevent interference</li>
-                <li>Requires microphone access for receiving messages</li>
-                <li>Works best in quiet environments (background noise may interfere)</li>
-            </ul>
+            <div class="chat-container">
+                <div class="messages" id="messages">
+                    <div class="message system">
+                        <div class="message-header">
+                            <span class="sender">System</span>
+                            <span class="timestamp">Just now</span>
+                        </div>
+                        <div class="message-content">
+                            Welcome! Grant microphone access to start receiving messages.
+                            <br>🔊 <em>Messages transmit via ultrasonic tones (15–20 kHz)</em>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <textarea id="message-input" placeholder="Type your message (max 60 chars)..."></textarea>
+                    <button id="send-btn" disabled>Send</button>
+                </div>
+            </div>
+
+            <div class="instructions">
+                <h3>ℹ️ How It Works</h3>
+                <ul>
+                    <li><strong>Transmission:</strong> Converts text → binary → ultrasonic tones (15kHz = 0, 20kHz = 1)</li>
+                    <li><strong>Reception:</strong> Uses microphone + FFT analysis to decode tones back to text</li>
+                    <li><strong>Error Correction:</strong> Hamming(7,4) code fixes single-bit errors</li>
+                    <li><strong>Isolation:</strong> Unique client IDs prevent message collisions</li>
+                    <li><strong>Best Practice:</strong> Use in quiet rooms; keep devices within 1–2 meters</li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <script>
+        // ======================
         // Configuration
-        const MIN_FREQ = 15000; // 15 kHz
-        const MAX_FREQ = 20000; // 20 kHz
-        const BIT_DURATION = 0.01; // 10ms per bit
+        // ======================
+        const MIN_FREQ = 15000;      // 15 kHz for '0'
+        const MAX_FREQ = 20000;      // 20 kHz for '1'
+        const BIT_DURATION = 0.012;  // 12ms per bit (~83 bps)
         const SAMPLE_RATE = 44100;
-        const CLIENT_ID = generateClientId(); // Unique client identifier
-        const MESSAGE_DELIMITER = '01111110'; // Flag sequence
+        const CLIENT_ID = Math.random().toString(36).substr(2, 4).toUpperCase();
+        const MESSAGE_DELIMITER = '01111110'; // HDLC-like flag
+        const MAX_MESSAGE_LENGTH = 60;
 
-        // DOM elements
+        // ======================
+        // DOM Elements
+        // ======================
+        const micPromptEl = document.getElementById('mic-prompt');
+        const chatUIEl = document.getElementById('chat-ui');
+        const micBtn = document.getElementById('mic-btn');
+        const micErrorEl = document.getElementById('mic-error');
+        const micDotEl = document.getElementById('mic-dot');
+        const micStatusTextEl = document.getElementById('mic-status-text');
+        const clientIdEl = document.getElementById('client-id');
         const messagesEl = document.getElementById('messages');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
-        const clientIdEl = document.getElementById('client-id');
-        const micStatusEl = document.getElementById('mic-status');
 
+        // ======================
         // State
-        let audioContext;
-        let analyser;
-        let microphone;
-        let isListening = true;
+        // ======================
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let isListening = false;
         let receivingBuffer = '';
+        let lastMessageTime = 0;
 
-        // Initialize client ID
-        clientIdEl.textContent = CLIENT_ID;
+        // ======================
+        // Helper Functions
+        // ======================
 
-        // Initialize audio system
-        async function initAudio() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                microphone = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
-                microphone.connect(analyser);
-                
-                micStatusEl.textContent = 'Active';
-                document.querySelector('.dot').className = 'dot online';
-                
-                // Start listening
-                listenForMessages();
-            } catch (err) {
-                micStatusEl.textContent = 'Error';
-                document.querySelector('.dot').className = 'dot offline';
-                addMessage('System', 'Error accessing microphone: ' + err.message, true);
-            }
-        }
+        function addMessage(sender, content, isError = false, isSystem = false) {
+            // Rate limit system messages
+            if (isSystem && Date.now() - lastMessageTime < 1000) return;
+            lastMessageTime = Date.now();
 
-        // Generate unique client ID (4 hex chars)
-        function generateClientId() {
-            return Math.random().toString(16).substr(2, 4).toUpperCase();
-        }
-
-        // Add message to chat
-        function addMessage(sender, content, isError = false) {
             const messageEl = document.createElement('div');
-            messageEl.className = `message ${sender === 'You' ? 'self' : 'other'}`;
+            messageEl.className = `message ${isSystem ? 'system' : sender === 'You' ? 'self' : 'other'}`;
             
             const now = new Date();
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -146,7 +222,6 @@
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
 
-        // Convert string to binary
         function stringToBinary(str) {
             let binary = '';
             for (let i = 0; i < str.length; i++) {
@@ -156,9 +231,8 @@
             return binary;
         }
 
-        // Add Hamming(7,4) error correction
         function encodeWithHamming(binary) {
-            // Pad to multiple of 4 bits
+            // Pad to multiple of 4
             while (binary.length % 4 !== 0) {
                 binary += '0';
             }
@@ -167,19 +241,18 @@
             for (let i = 0; i < binary.length; i += 4) {
                 const data = binary.substr(i, 4).split('').map(Number);
                 
-                // Calculate parity bits
+                // Parity bits
                 const p1 = data[0] ^ data[1] ^ data[3];
                 const p2 = data[0] ^ data[2] ^ data[3];
                 const p3 = data[1] ^ data[2] ^ data[3];
                 
-                // Hamming(7,4) codeword: [p1, p2, d0, p3, d1, d2, d3]
+                // [p1, p2, d0, p3, d1, d2, d3]
                 const codeword = [p1, p2, data[0], p3, data[1], data[2], data[3]];
                 encoded += codeword.join('');
             }
             return encoded;
         }
 
-        // Decode with Hamming error correction
         function decodeHamming(encoded) {
             if (encoded.length % 7 !== 0) return null;
             
@@ -187,158 +260,162 @@
             for (let i = 0; i < encoded.length; i += 7) {
                 const codeword = encoded.substr(i, 7).split('').map(Number);
                 
-                // Calculate syndrome
+                // Syndrome calculation
                 const s1 = codeword[0] ^ codeword[2] ^ codeword[4] ^ codeword[6];
                 const s2 = codeword[1] ^ codeword[2] ^ codeword[5] ^ codeword[6];
                 const s3 = codeword[3] ^ codeword[4] ^ codeword[5] ^ codeword[6];
                 const syndrome = s1 + (s2 << 1) + (s3 << 2);
                 
-                // Correct single-bit errors
-                if (syndrome !== 0) {
-                    if (syndrome <= 7) {
-                        codeword[syndrome - 1] ^= 1; // Flip the erroneous bit
-                    }
+                // Correct single-bit error
+                if (syndrome > 0 && syndrome <= 7) {
+                    codeword[syndrome - 1] ^= 1;
                 }
                 
-                // Extract data bits: positions 2,4,5,6
+                // Extract data bits (positions 2,4,5,6)
                 const data = [codeword[2], codeword[4], codeword[5], codeword[6]];
                 binary += data.join('');
             }
             
-            // Remove padding
-            while (binary.endsWith('0000')) {
-                binary = binary.slice(0, -4);
+            // Remove zero-padding (safely)
+            while (binary.length % 8 !== 0) {
+                binary = binary.slice(0, -1);
             }
             
             return binary;
         }
 
-        // Convert binary to string
         function binaryToString(binary) {
             let str = '';
             for (let i = 0; i < binary.length; i += 8) {
                 const bin = binary.substr(i, 8);
                 if (bin.length === 8) {
                     const charCode = parseInt(bin, 2);
-                    if (charCode > 0) str += String.fromCharCode(charCode);
+                    if (charCode >= 32 && charCode <= 126) { // Printable ASCII
+                        str += String.fromCharCode(charCode);
+                    }
                 }
             }
             return str;
         }
 
-        // Encode message with client ID and error correction
         function encodeMessage(message) {
-            // Format: [CLIENT_ID][MESSAGE]
+            // Ensure message is clean
+            message = message.trim().substring(0, MAX_MESSAGE_LENGTH);
             const data = CLIENT_ID + '|' + message;
             const binary = stringToBinary(data);
             const encoded = encodeWithHamming(binary);
             return MESSAGE_DELIMITER + encoded + MESSAGE_DELIMITER;
         }
 
-        // Generate audio for transmission
         function transmitAudio(bitString) {
-            if (!audioContext) return;
-            
-            const totalDuration = bitString.length * BIT_DURATION;
-            const bufferSize = Math.ceil(SAMPLE_RATE * totalDuration);
-            const buffer = audioContext.createBuffer(1, bufferSize, SAMPLE_RATE);
-            const channelData = buffer.getChannelData(0);
-            
-            let sampleIndex = 0;
-            for (let i = 0; i < bitString.length; i++) {
-                const bit = bitString[i];
-                const freq = bit === '0' ? MIN_FREQ : MAX_FREQ;
-                const samplesPerBit = Math.floor(SAMPLE_RATE * BIT_DURATION);
-                
-                for (let j = 0; j < samplesPerBit && sampleIndex < bufferSize; j++) {
-                    channelData[sampleIndex] = Math.sin(2 * Math.PI * freq * sampleIndex / SAMPLE_RATE);
-                    sampleIndex++;
-                }
+            if (!audioContext) {
+                addMessage('System', '⚠️ Audio system not ready. Please grant microphone access.', true, true);
+                return;
             }
             
-            // Play the buffer
-            const source = audioContext.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioContext.destination);
-            source.start();
+            try {
+                const totalDuration = bitString.length * BIT_DURATION;
+                const bufferSize = Math.ceil(SAMPLE_RATE * totalDuration);
+                const buffer = audioContext.createBuffer(1, bufferSize, SAMPLE_RATE);
+                const channelData = buffer.getChannelData(0);
+                
+                let sampleIndex = 0;
+                for (let i = 0; i < bitString.length; i++) {
+                    const bit = bitString[i];
+                    const freq = bit === '0' ? MIN_FREQ : MAX_FREQ;
+                    const samplesPerBit = Math.floor(SAMPLE_RATE * BIT_DURATION);
+                    
+                    for (let j = 0; j < samplesPerBit && sampleIndex < bufferSize; j++) {
+                        channelData[sampleIndex] = 0.1 * Math.sin(2 * Math.PI * freq * sampleIndex / SAMPLE_RATE);
+                        sampleIndex++;
+                    }
+                }
+                
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start();
+                
+                addMessage('System', `✅ Sent ${bitString.length} bits (${bitString.length * BIT_DURATION.toFixed(2)}s)`, false, true);
+            } catch (e) {
+                addMessage('System', `❌ Audio error: ${e.message}`, true, true);
+            }
         }
 
-        // Process audio chunks for reception
         function processAudioChunk(dataArray) {
-            // Find peaks in frequency bins corresponding to our frequencies
             const binSize = SAMPLE_RATE / analyser.fftSize;
             const minBin = Math.floor(MIN_FREQ / binSize);
             const maxBin = Math.floor(MAX_FREQ / binSize);
             const midBin = Math.floor((MIN_FREQ + MAX_FREQ) / 2 / binSize);
             
-            // Look for energy in our frequency bands
             let minEnergy = 0;
             let maxEnergy = 0;
             
+            // Sum energy in lower half (15–17.5 kHz)
             for (let i = minBin; i <= midBin; i++) {
                 minEnergy += dataArray[i];
             }
+            // Sum energy in upper half (17.5–20 kHz)
             for (let i = midBin + 1; i <= maxBin; i++) {
                 maxEnergy += dataArray[i];
             }
             
-            // Determine bit based on dominant frequency
-            if (minEnergy > maxEnergy * 1.5) {
-                return '0';
-            } else if (maxEnergy > minEnergy * 1.5) {
-                return '1';
-            }
-            return ''; // No clear signal
+            // Decision with hysteresis
+            if (minEnergy > maxEnergy * 1.6) return '0';
+            if (maxEnergy > minEnergy * 1.6) return '1';
+            return ''; // Uncertain
         }
 
-        // Listen for incoming messages
         function listenForMessages() {
             if (!analyser) return;
-            
+            isListening = true;
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
             
             function process() {
                 if (!isListening) return;
                 
-                analyser.getByteFrequencyData(dataArray);
-                const bit = processAudioChunk(dataArray);
-                
-                if (bit) {
-                    receivingBuffer += bit;
+                try {
+                    analyser.getByteFrequencyData(dataArray);
+                    const bit = processAudioChunk(dataArray);
                     
-                    // Check for message boundaries
-                    if (receivingBuffer.endsWith(MESSAGE_DELIMITER)) {
-                        try {
-                            // Extract message between delimiters
-                            const startIndex = receivingBuffer.indexOf(MESSAGE_DELIMITER);
-                            if (startIndex !== -1) {
-                                const endIndex = receivingBuffer.indexOf(MESSAGE_DELIMITER, startIndex + MESSAGE_DELIMITER.length);
-                                if (endIndex !== -1) {
-                                    const encodedMessage = receivingBuffer.substring(
-                                        startIndex + MESSAGE_DELIMITER.length, 
-                                        endIndex
-                                    );
-                                    
-                                    // Decode with error correction
-                                    const decodedBinary = decodeHamming(encodedMessage);
-                                    if (decodedBinary) {
-                                        const messageText = binaryToString(decodedBinary);
-                                        
-                                        // Parse client ID and message
-                                        const [clientId, actualMessage] = messageText.split('|');
-                                        if (clientId && actualMessage && clientId !== CLIENT_ID) {
-                                            addMessage(`Client ${clientId}`, actualMessage);
+                    if (bit) {
+                        receivingBuffer += bit;
+                        
+                        // Prevent buffer overflow
+                        if (receivingBuffer.length > 2000) {
+                            receivingBuffer = receivingBuffer.substring(receivingBuffer.length - 1000);
+                        }
+                        
+                        // Look for complete message (delimited)
+                        const firstFlag = receivingBuffer.indexOf(MESSAGE_DELIMITER);
+                        if (firstFlag !== -1) {
+                            const secondFlag = receivingBuffer.indexOf(MESSAGE_DELIMITER, firstFlag + MESSAGE_DELIMITER.length);
+                            if (secondFlag !== -1 && secondFlag > firstFlag) {
+                                const payload = receivingBuffer.substring(
+                                    firstFlag + MESSAGE_DELIMITER.length,
+                                    secondFlag
+                                );
+                                
+                                // Attempt decoding
+                                const decodedBin = decodeHamming(payload);
+                                if (decodedBin && decodedBin.length >= 8) {
+                                    const text = binaryToString(decodedBin);
+                                    const parts = text.split('|');
+                                    if (parts.length === 2) {
+                                        const [cid, msg] = parts;
+                                        if (cid && msg && cid.length === 4 && cid !== CLIENT_ID) {
+                                            addMessage(`Client ${cid}`, msg);
                                         }
                                     }
-                                    
-                                    // Reset buffer after processing
-                                    receivingBuffer = receivingBuffer.substring(endIndex + MESSAGE_DELIMITER.length);
                                 }
+                                
+                                // Keep remainder after second flag
+                                receivingBuffer = receivingBuffer.substring(secondFlag + MESSAGE_DELIMITER.length);
                             }
-                        } catch (e) {
-                            console.error('Decoding error:', e);
                         }
                     }
+                } catch (e) {
+                    console.warn('Processing error:', e);
                 }
                 
                 requestAnimationFrame(process);
@@ -347,23 +424,104 @@
             process();
         }
 
-        // Send message
-        function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message) return;
-            
+        // ======================
+        // Main Logic
+        // ======================
+
+        async function initAudio() {
+            micBtn.disabled = true;
+            micBtn.textContent = '🔍 Checking...';
+
             try {
-                const encoded = encodeMessage(message);
-                transmitAudio(encoded);
-                addMessage('You', message);
-                messageInput.value = '';
-            } catch (e) {
-                addMessage('System', 'Error sending message: ' + e.message, true);
+                // Request mic with constraints
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        sampleRate: SAMPLE_RATE,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: false
+                    }
+                });
+
+                // Create audio context (resume if suspended)
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                microphone = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                analyser.smoothingTimeConstant = 0.8;
+                microphone.connect(analyser);
+
+                // Switch to chat UI
+                micPromptEl.classList.add('hidden');
+                chatUIEl.classList.remove('hidden');
+                micDotEl.className = 'dot online';
+                micStatusTextEl.textContent = 'Active';
+                clientIdEl.textContent = CLIENT_ID;
+                sendBtn.disabled = false;
+
+                addMessage('System', `✅ Microphone ready! Your ID: <strong>${CLIENT_ID}</strong>`, false, true);
+                addMessage('System', `🔊 Ready to send/receive ultrasonic messages`, false, true);
+                
+                // Start listening
+                listenForMessages();
+
+            } catch (err) {
+                micBtn.disabled = false;
+                micBtn.textContent = 'Retry Access';
+                micDotEl.className = 'dot offline';
+                micStatusTextEl.textContent = 'Blocked';
+
+                let msg = err.message || 'Unknown error';
+                if (err.name === 'NotAllowedError') {
+                    msg = 'You denied microphone access. Click button and choose "Allow".';
+                } else if (err.name === 'NotFoundError') {
+                    msg = 'No microphone found. Check hardware/settings.';
+                } else if (window.isSecureContext === false && window.location.protocol !== 'https:') {
+                    msg = 'Microphone requires HTTPS or localhost. Serve via http://localhost (not file://).';
+                }
+
+                micErrorEl.textContent = `❌ ${err.name}: ${msg}`;
+                micErrorEl.classList.remove('hidden');
+                console.error('Mic init error:', err);
             }
         }
 
-        // Event listeners
+        function sendMessage() {
+            const msg = messageInput.value.trim();
+            if (!msg) return;
+            if (msg.length > MAX_MESSAGE_LENGTH) {
+                addMessage('System', `⚠️ Message too long (max ${MAX_MESSAGE_LENGTH} chars)`, true, true);
+                return;
+            }
+            
+            try {
+                const encoded = encodeMessage(msg);
+                transmitAudio(encoded);
+                addMessage('You', msg);
+                messageInput.value = '';
+                messageInput.focus();
+            } catch (e) {
+                addMessage('System', `❌ Send failed: ${e.message}`, true, true);
+            }
+        }
+
+        // ======================
+        // Event Listeners
+        // ======================
+
+        micBtn.addEventListener('click', initAudio);
+
         sendBtn.addEventListener('click', sendMessage);
+
+        messageInput.addEventListener('input', () => {
+            sendBtn.disabled = messageInput.value.trim().length === 0;
+        });
+
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -371,8 +529,8 @@
             }
         });
 
-        // Initialize
-        initAudio();
+        // Auto-focus input on load (if visible)
+        setTimeout(() => messageInput.focus(), 500);
     </script>
 </body>
 </html>
