@@ -88,20 +88,20 @@
         <div class="panel">
             <h2>🎛️ Parameters</h2>
             <label>Min Frequency (Hz): <span id="minFreqLabel">100</span></label>
-            <input type="range" id="minFreq" min="20" max="5000" value="100">
+            <input type="range" id="minFreq" min="20" max="20000" value="100">
             <input type="number" id="minFreqNum" min="20" max="20000" value="100" step="10">
 
             <label>Max Frequency (Hz): <span id="maxFreqLabel">3000</span></label>
-            <input type="range" id="maxFreq" min="200" max="16000" value="3000">
-            <input type="number" id="maxFreqNum" min="200" max="20000" value="3000" step="100">
+            <input type="range" id="maxFreq" min="20" max="20000" value="3000">
+            <input type="number" id="maxFreqNum" min="20" max="20000" value="3000" step="100">
 
             <label>Duration (s): <span id="durationLabel">3.0</span></label>
             <input type="range" id="duration" min="1" max="30" step="0.5" value="3">
             <input type="number" id="durationNum" min="1" max="30" value="3" step="0.5">
 
             <label>Gain: <span id="gainLabel">0.9</span></label>
-            <input type="range" id="gain" min="0.1" max="2" step="0.05" value="0.9">
-            <input type="number" id="gainNum" min="0.1" max="5" value="0.9" step="0.1">
+            <input type="range" id="gain" min="0." max="5" step="0.05" value="0.9">
+            <input type="number" id="gainNum" min="0." max="5" value="0.9" step="0.1">
 
             <button id="synthesizeBtn">🔊 Synthesize Audio</button>
             <div class="status" id="status">✅ Ready. Upload an image to begin.</div>
