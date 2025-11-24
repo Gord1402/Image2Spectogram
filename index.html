@@ -240,7 +240,7 @@ document.getElementById('textInput').addEventListener('input', (e) => {
     offCtx.font = 'bold 48px Arial, sans-serif';
     const metrics = offCtx.measureText(text);
     const width = Math.ceil(metrics.width) + 40
-    const new_duturation = width / 7;
+    const new_duturation = width / 14;
     const height = 80;
 
     offscreen.width = width;
@@ -265,6 +265,7 @@ document.getElementById('textInput').addEventListener('input', (e) => {
     statusDiv.textContent = `✅ Text rendered: "${text}"`;
     config.duration.el.value = new_duturation;
     config.duration.val = new_duturation;
+    config.duration.num = new_duturation;
     config.duration.label.textContent = new_duturation;
 });
         // Load image
