@@ -96,8 +96,8 @@
             <input type="number" id="maxFreqNum" min="20" max="20000" value="3000" step="100">
 
             <label>Duration (s): <span id="durationLabel">3.0</span></label>
-            <input type="range" id="duration" min="1" max="30" step="0.5" value="3">
-            <input type="number" id="durationNum" min="1" max="30" value="3" step="0.5">
+            <input type="range" id="duration" min="1" max="600" step="0.5" value="3">
+            <input type="number" id="durationNum" min="1" max="600" value="3" step="0.5">
 
             <label>Gain: <span id="gainLabel">0.9</span></label>
             <input type="range" id="gain" min="0." max="5" step="0.05" value="0.9">
@@ -239,7 +239,8 @@ document.getElementById('textInput').addEventListener('input', (e) => {
     
     offCtx.font = 'bold 48px Arial, sans-serif';
     const metrics = offCtx.measureText(text);
-    const width = Math.min(Math.ceil(metrics.width) + 40, 512);
+    const width = Math.ceil(metrics.width) + 40
+    const new_duturation = width / 7;
     const height = 80;
 
     offscreen.width = width;
@@ -262,6 +263,9 @@ document.getElementById('textInput').addEventListener('input', (e) => {
     // Save image data
     originalImageData = ctx.getImageData(0, 0, width, height);
     statusDiv.textContent = `✅ Text rendered: "${text}"`;
+    config.duration.el.value = new_duturation;
+    config.duration.val = new_duturation;
+    update();
 });
         // Load image
         imageInput.addEventListener('change', (e) => {
