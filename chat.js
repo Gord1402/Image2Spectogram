@@ -336,45 +336,45 @@ function createEnhancedInterface() {
     document.body.appendChild(container);
 }
 
+function frequencyToBin(frequencyHz, audioContext, analyser) {
+    const sampleRate = audioContext.sampleRate;
+    const fftSize = analyser.fftSize;
+    return Math.floor(frequencyHz / (sampleRate / fftSize));
+}
+
 function startEnhancedReceiver() {
     let lastSampleTime = 0;
     let sampleCount = 0;
+
+    let isActtive = false;
     
     function sampleSignal() {
         if (!analyser) return;
         
         const currentTime = Date.now();
-        
-        // Sample at fixed rate
-        if (currentTime - lastSampleTime >= protocol.SAMPLE_RATE) {
-            lastSampleTime = currentTime;
-            sampleCount++;
-            
-            analyser.getByteFrequencyData(dataArray);
-            const freqValues = protocol.detectFrequencies(dataArray, audioContext, analyser);
-            
-            // Update stats display
-            statsDisplay.textContent = 
-                `Freq0: ${freqValues.freq0.toFixed(1)} | Freq1: ${freqValues.freq1.toFixed(1)} | Sync: ${freqValues.sync.toFixed(1)} | Samples: ${sampleCount}`;
-            
-            // Detect current bit
-            const detectedBit = protocol.detectBit(freqValues);
-            
-            if (detectedBit != null) console.log(detectedBit)
 
-            if (detectedBit === "S"){
-                if (protocol.receiving){
-                    tryDecodeBuffer();
-                    protocol.receiving = false
-                } else{
-                    startReception(currentTime);
-                }
-            }
+        analyser.getByteFrequencyData(dataArray);
 
-            if (detectedBit != null){
-                protocol.bitBuffer.push(detectedBit);
+        const freq = dataArray[frequencyToBin(10000, audioContext, analyser)]
+        const freq0 = dataArray[frequencyToBin(9000, audioContext, analyser)]
+        const freq1 = dataArray[frequencyToBin(8000, audioContext, analyser)]
+        console.log(freq, freq0,freq1)
+
+        if (freq < 50 && isActtive) isActtive = false;
+
+        if (freq > 50 && !isActtive){
+            isActtive = true;
+            console.log("Start reciving bit")
+            if (freq0 > 50 && freq1 > 50) {
+                console.log(protocol.bitBuffer)
+                tryDecodeBuffer();
+                startReception(currentTime)
             }
+            if (freq0 > 50) protocol.bitBuffer.push('0')
+            else if (freq1 > 50) protocol.bitBuffer.push('1')
+            
         }
+
         
         requestAnimationFrame(sampleSignal);
     }
@@ -484,7 +484,7 @@ function tryDecodeBuffer() {
         if (charCode >= 32 && charCode <= 126) {
             const text = String.fromCharCode(charCode);
             dataDisplay.innerHTML = `✅ <strong>Received:</strong> "${text}" <small>(${byteStr})</small>`;
-            logMessage(`🎉 Decoded character: "${text}" from ${byteStr}`);
+            console.log(`🎉 Decoded character: "${text}" from ${byteStr}`);
             
             // Remove processed bits
             protocol.bitBuffer.splice(0, i + 8);
@@ -553,18 +553,13 @@ async function sendEnhancedData() {
         // Add gap before transmission
         await new Promise(resolve => setTimeout(resolve, 200));
         
-        // Send sync signal first
-        await sendEnhancedSyncSignal();
-        
         // Send data with proper gaps
         for (let i = 0; i < text.length; i++) {
             await sendEnhancedCharacter(text[i]);
-            
-            // Gap between characters (except last one)
-            if (i < text.length - 1) {
-                await new Promise(resolve => setTimeout(resolve, protocol.BIT_DURATION * 0.3));
-            }
         }
+        playEnhancedTone(10000, protocol.BIT_DURATION * 2, ()=>{});
+        playEnhancedTone(9000, protocol.BIT_DURATION * 2, ()=>{});
+        await new Promise(resolve => playEnhancedTone(8000, protocol.BIT_DURATION * 2, resolve));
         
         // Add gap after transmission
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -596,15 +591,17 @@ async function sendEnhancedCharacter(char) {
         await sendEnhancedBit(binary[i]);
         
         // Small gap between bits (except last one)
-        if (i < binary.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, protocol.SILENCE_GAP));
-        }
+            await new Promise(resolve => setTimeout(resolve, 250));
     }
 }
 
 async function sendEnhancedBit(bit) {
-    const frequency = bit === '0' ? protocol.FREQ_0 : protocol.FREQ_1;
+    const frequency = bit === '0' ? 8000 : 9000;
     
+    playEnhancedTone(frequency, protocol.BIT_DURATION * 2, ()=>{});
+    return new Promise(resolve => playEnhancedTone(10000, protocol.BIT_DURATION * 2, resolve));
+    
+
     return new Promise((resolve) => {
         // Slightly shorter tone to ensure clear separation
         playEnhancedTone(frequency, protocol.BIT_DURATION * 0.9, resolve);
