@@ -22,8 +22,10 @@
 <body>
     <h1>Audio Data Transmission</h1>
     <button id="startButton">Start Microphone</button>
-    <canvas id="spectrogram"></canvas>
-
+    <div id="spectrogram-container" style="position: relative; width: 800px; height: 400px;">
+        <canvas id="spectrogram" width="800" height="400" style="position: absolute; top: 0; left: 0;"></canvas>
+        <canvas id="axisCanvas" width="800" height="400" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+    </div>
     <script src="chat.js"></script>
 </body>
 </html>

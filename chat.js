@@ -2,9 +2,14 @@ const canvas = document.getElementById('spectrogram');
 const ctx = canvas.getContext('2d');
 const startButton = document.getElementById('startButton');
 
-// Set canvas size
-canvas.width = 800;
+const axisCanvas = document.getElementById('axisCanvas');
+const axisCtx = axisCanvas.getContext('2d');
+
+canvas.width = 900;
 canvas.height = 400;
+
+axisCanvas.width = 900;
+axisCanvas.height = 400;
 
 let audioContext;
 let analyser;
@@ -12,38 +17,177 @@ let dataArray;
 let animationId;
 let spectrogramImage;
 
-// Simplified FSK Protocol with the new detection algorithm
+
 class SimpleFSKProtocol {
     constructor() {
-        this.FREQ_0 = 13000;   // Frequency for bit 0
-        this.FREQ_1 = 12000;   // Frequency for bit 1
-        this.FREQ_SYNC = 11000; // Sync frequency
+        this.FREQ_0 = 15000; 
+        this.FREQ_1 = 16000;  
+        this.FREQ_SYNC = 15500;
+        this.FREQ_SYNC2 = 16500;
+        this.DELTA_FREQ = [0, 100, -100, -200, 200]
         
-        this.BIT_DURATION = 100; // ms per bit
-        this.GAP = 200;
+        this.BIT_DURATION = 60; 
+        this.GAP = 120;
 
-        this.TRESH = 20
+        this.TRESH = 60
         
         this.bitBuffer = [];
-        this.active0 = 0;
-        this.active1 = 0;
-        this.activesync = 0;
         this.isActive = false;
+        this.isOdd = false;
+        this.isOddSend = false;
+        this.lastActive = 0;
+    }
+
+    sample(dataArray){
+        const freqSync1 = this.getFreq(this.FREQ_SYNC, dataArray);
+        const freqSync2 = this.getFreq(this.FREQ_SYNC2, dataArray);
+
+        const freqSync = this.isOdd?freqSync2:freqSync1;
+
+        const freq0 = this.getFreq(this.FREQ_0, dataArray);
+        const freq1 = this.getFreq(this.FREQ_1, dataArray);
+        const currentTime = Date.now();
+
+
+        // if (freqSync1 > this.TRESH && freqSync2 > this.TRESH && (freq0 + freq1))
+
+        if (freqSync < this.TRESH && this.isActive) {
+            this.isActive = false;
+            this.isOdd = !this.isOdd;
+        }
+
+        // if (freqSync > this.TRESH && this.isActive && currentTime - this.lastActive > this.BIT_DURATION + this.GAP) 
+        //                 this.isActive = false;
+
+
+        if (freqSync > this.TRESH && !this.isActive) {
+            this.isActive = true;
+            this.lastActive = currentTime;
+            console.log("bit")
+            
+            if (freq0 > this.TRESH && freq1 > this.TRESH) {
+                dataDisplay.innerText = this.binaryToString(this.bitBuffer.join(""))
+                this.reset()
+            }
+
+            if (freq0 > this.TRESH) {
+                this.bitBuffer.push('0');
+                logDisplay.innerText = this.bitBuffer.join("")
+            } else if (freq1 > this.TRESH) {
+                this.bitBuffer.push('1');
+                logDisplay.innerText = this.bitBuffer.join("")
+            }
+        }
+
+    }
+
+    getFreq(frequency, dataArray){
+        const freqs = this.DELTA_FREQ.map((df) => dataArray[frequencyToBin(frequency + df)]);
+        const average = freqs.reduce((s, v) => s + v, 0) / freqs.length;
+
+        if (Math.min(freqs) / Math.max(freqs) > 0.4){
+            return 0.
+        }
+        // fsdfsdfsdfsdfsdfsfs
+        return average;
+    }
+
+    binaryToString(binaryStr) {
+        if (binaryStr.length % 8 !== 0) {
+            binaryStr += "0".repeat(8 - binaryStr.length % 8)
+        }
+        
+        const chunks = [];
+        for (let i = 0; i < binaryStr.length; i += 8) {
+            chunks.push(binaryStr.slice(i, i + 8));
+        }
+        
+        return chunks
+            .map(bin => String.fromCharCode(parseInt(bin, 2)))
+            .join('');
+    }
+
+
+    stringToBinary(str) {
+        return str
+            .split('')
+            .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
+            .join('');
+    }
+
+
+    async sendBits(binary){
+        this.isOddSend = false;
+        this.playTone(this.FREQ_0, this.BIT_DURATION)
+        this.playTone(this.FREQ_1, this.BIT_DURATION)
+        this.playTone(this.FREQ_SYNC2, this.BIT_DURATION)
+        await this.playTone(this.FREQ_SYNC, this.BIT_DURATION)
+        await new Promise((resolve)=>setTimeout(resolve, this.GAP));
+
+        let i = 0;
+        for (const bit of binary){
+            await this.sendBit(bit)
+        }
+
+        await new Promise((resolve)=>setTimeout(resolve, this.GAP));
+        this.playTone(this.FREQ_0, this.BIT_DURATION)
+        this.playTone(this.FREQ_1, this.BIT_DURATION)
+        this.playTone(this.FREQ_SYNC2, this.BIT_DURATION)
+        await this.playTone(this.FREQ_SYNC, this.BIT_DURATION)
+    }
+
+    async sendBit(bit){
+        this.playTone(this.isOddSend?this.FREQ_SYNC2:this.FREQ_SYNC, this.BIT_DURATION)
+        await this.playTone(bit == "0"?this.FREQ_0:this.FREQ_1, this.BIT_DURATION)
+        await new Promise((resolve)=>setTimeout(resolve, this.GAP));
+        this.isOddSend = !this.isOddSend;
+    }
+
+    async playTone(frequency, durationMs) {
+        let promise = null
+        for (const df of this.DELTA_FREQ){
+            promise = this.playToneSingle(frequency + df, durationMs);
+        }
+        await promise
+    }
+
+    async playToneSingle(frequency, durationMs) {
+        if (!audioContext) {
+            return;
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+        
+        const now = audioContext.currentTime;
+        const duration = durationMs / 1000;
+        
+        // Clean envelope
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.1, now + 0.01);
+        gainNode.gain.setValueAtTime(0.1, now + duration - 0.02);
+        gainNode.gain.linearRampToValueAtTime(0, now + duration - 0.01);
+        
+        oscillator.start(now);
+        oscillator.stop(now + duration);
+        
+        await new Promise((resolve)=>setTimeout(resolve, durationMs));
     }
     
     reset() {
         this.bitBuffer = [];
-        this.active0 = 0;
-        this.active1 = 0;
-        this.activesync = 0;
-        this.isActive = false;
+        this.isOdd = false;
     }
 }
 
-// Create protocol instance
 const protocol = new SimpleFSKProtocol();
 
-// UI elements
 let dataDisplay, sendInput, sendButton, statusDisplay, logDisplay;
 
 startButton.addEventListener('click', async () => {
@@ -65,8 +209,8 @@ startButton.addEventListener('click', async () => {
         const source = audioContext.createMediaStreamSource(stream);
         source.connect(analyser);
         
-        analyser.fftSize = 8192;
-        analyser.smoothingTimeConstant = 0.02;
+        analyser.fftSize = 16384;
+        analyser.smoothingTimeConstant = 0.00;
         
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
@@ -82,6 +226,7 @@ startButton.addEventListener('click', async () => {
         createInterface();
         startButton.style.display = 'none';
         drawSpectrogram(spectrogramCtx);
+        drawFrequencyAxis()
         startReceiver();
         
     } catch (err) {
@@ -119,6 +264,46 @@ function drawSpectrogram(spectrogramCtx) {
     animationId = requestAnimationFrame(() => drawSpectrogram(spectrogramCtx));
 }
 
+function drawFrequencyAxis() {
+    const height = axisCanvas.height;
+    const width = axisCanvas.width;
+    const margin = 10;
+    
+    axisCtx.clearRect(0, 0, width, height);
+    axisCtx.fillStyle = '#ffffff';
+    axisCtx.font = '12px monospace';
+    axisCtx.textAlign = 'right';
+    axisCtx.textBaseline = 'middle';
+
+    // Logarithmic scale: 100Hz → Nyquist (~22050Hz)
+    const sampleRate = audioContext.sampleRate;
+    const nyquist = sampleRate / 2;
+    const minFreq = 100; // ignore very low bins (0–100 Hz often noisy)
+
+    // Choose nice frequency ticks: 100, 200, 500, 1k, 2k, 5k, 10k, 20k
+    const freqTicks = [1, 2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 22500, 25000].filter(f => f <= nyquist);
+
+    freqTicks.forEach(freq => {
+        const bin = frequencyToBin(freq);
+        const x = (bin / analyser.frequencyBinCount) * width;
+
+        // Skip if outside visible range
+        if (x < 0 || x > width) return;
+
+        // Draw horizontal tick line (optional)
+        axisCtx.beginPath();
+        axisCtx.moveTo(x, margin);
+        axisCtx.lineTo(x, 0);
+        axisCtx.strokeStyle = '#000';
+        axisCtx.stroke();
+
+        // Draw label
+        let label = freq + ' Hz';
+        if (freq >= 1000) label = (freq / 1000) + ' kHz';
+        axisCtx.fillText(label, x + 40, margin + 10);
+    });
+}
+
 const colorCache = {};
 function getColor(intensity) {
     const key = Math.floor(intensity * 100);
@@ -154,44 +339,19 @@ function frequencyToBin(frequencyHz) {
     return Math.floor(frequencyHz / (sampleRate / fftSize));
 }
 
+function binToFrequency(binIndex) {
+    const sampleRate = audioContext.sampleRate;
+    const fftSize = analyser.fftSize;
+    return binIndex * (sampleRate / fftSize);
+}
+
 function startReceiver() {
     function sampleSignal() {
         if (!analyser) return;
         
-        const currentTime = Date.now();
         analyser.getByteFrequencyData(dataArray);
 
-        // Get frequency values using the new algorithm
-        const freqSync = dataArray[frequencyToBin(protocol.FREQ_SYNC)];
-        const freq0 = dataArray[frequencyToBin(protocol.FREQ_0)];
-        const freq1 = dataArray[frequencyToBin(protocol.FREQ_1)];
-
-        // New detection algorithm
-        if (freqSync < protocol.TRESH && protocol.isActive) {
-            protocol.isActive = false;
-        }
-
-        if (freqSync > protocol.TRESH && !protocol.isActive) {
-            protocol.isActive = true;
-            console.log("bit")
-            
-            // Check for sync pattern (both frequencies active)
-            if (freq0 > protocol.TRESH && freq1 > protocol.TRESH) {
-                tryDecodeBuffer();
-                startReception(currentTime);
-            }
-            
-            // Detect which bit is being sent
-            if (freq0 > protocol.TRESH) {
-                protocol.bitBuffer.push('0');
-                logMessage("Detected bit: 0");
-            } else if (freq1 > protocol.TRESH) {
-                protocol.bitBuffer.push('1');
-                logMessage("Detected bit: 1");
-            }
-            
-            updateDisplay();
-        }
+        protocol.sample(dataArray);
         
         requestAnimationFrame(sampleSignal);
     }
@@ -199,46 +359,7 @@ function startReceiver() {
     sampleSignal();
 }
 
-function startReception(currentTime) {
-    protocol.bitBuffer = [];
-}
 
-function tryDecodeBuffer() {
-    if (protocol.bitBuffer.length < 8) return false;
-    
-    const bitString = protocol.bitBuffer.join('');
-    
-    // Look for complete bytes (groups of 8 bits)
-    let i = 0;
-    result = ""
-    while (i <= bitString.length - 8) {
-        const byteStr = bitString.substring(i, i + 8);
-        const charCode = parseInt(byteStr, 2);
-
-        result += String.fromCharCode(charCode);
-        protocol.bitBuffer.splice(0, i + 8);
-        
-        i++;
-    }
-
-
-    dataDisplay.innerHTML = `✅ <strong>Received:</strong> "${result}"`;
-    logMessage(`🎉 Decoded character: "${result}"`);
-    
-    // Remove processed bits
-    protocol.bitBuffer.splice(0, i + 8);
-    updateDisplay();
-    return true;
-    
-    return false;
-}
-
-function updateDisplay() {
-    const bitString = protocol.bitBuffer.join('');
-    if (bitString.length > 0) {
-        dataDisplay.textContent = `Receiving bits: ${bitString} (${bitString.length} bits)`;
-    }
-}
 
 function createInterface() {
     const container = document.createElement('div');
@@ -292,123 +413,9 @@ function createInterface() {
 
 // Transmission functions
 async function sendData() {
-    const text = sendInput.value.trim();
-    if (!text) {
-        updateStatus('Please enter text to send', 'warning');
-        return;
-    }
-    
-    if (text.length > 50) {
-        updateStatus('Text too long (max 50 chars)', 'warning');
-        return;
-    }
-    
+    const text = sendInput.value.trim(); 
     sendInput.value = '';
-    updateStatus('Transmitting...', 'transmitting');
-    
-    logMessage(`Starting transmission: "${text}"`);
-    
-    try {
-        // Add gap before transmission
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        // Send data
-        for (let i = 0; i < text.length; i++) {
-            await sendCharacter(text[i]);
-        }
-        
-        // Send end sync
-        playTone(protocol.FREQ_SYNC, protocol.BIT_DURATION * 2, ()=>{});
-        playTone(protocol.FREQ_0, protocol.BIT_DURATION * 2, ()=>{});
-        playTone(protocol.FREQ_1, protocol.BIT_DURATION * 2, ()=>{});
-        
-        // Add gap after transmission
-        await new Promise(resolve => setTimeout(resolve, protocol.BIT_DURATION * 2));
-        
-        updateStatus('Transmission complete', 'success');
-        logMessage('Transmission completed successfully');
-        
-    } catch (error) {
-        updateStatus('Transmission failed', 'error');
-        logMessage(`Transmission failed: ${error.message}`);
-    }
-}
-
-
-async function sendCharacter(char) {
-    const binary = char.charCodeAt(0).toString(2).padStart(8, '0');
-    logMessage(`Sending '${char}' as ${binary}`);
-    
-    dataDisplay.textContent = `Sending: ${char} (${binary})`;
-    
-    for (let i = 0; i < binary.length; i++) {
-        await sendBit(binary[i]);
-        
-        // Small gap between bits
-        await new Promise(resolve => setTimeout(resolve, protocol.GAP));
-    }
-}
-
-async function sendBit(bit) {
-    const frequency = bit === '0' ? protocol.FREQ_0 : protocol.FREQ_1;
-    
-    setTimeout(()=>{playTone(protocol.FREQ_SYNC, protocol.BIT_DURATION / 3, ()=>{})}, protocol.BIT_DURATION / 3);
-    return new Promise((resolve) => {
-        playTone(frequency, protocol.BIT_DURATION, resolve);
-    });
-}
-
-function playTone(frequency, durationMs, callback) {
-    if (!audioContext) {
-        if (callback) setTimeout(callback, durationMs);
-        return;
-    }
-    
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = frequency;
-    oscillator.type = 'sine';
-    
-    const now = audioContext.currentTime;
-    const duration = durationMs / 1000;
-    
-    // Clean envelope
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(0.1, now + 0.01);
-    gainNode.gain.setValueAtTime(0.1, now + duration - 0.02);
-    gainNode.gain.linearRampToValueAtTime(0, now + duration - 0.01);
-    
-    oscillator.start(now);
-    oscillator.stop(now + duration);
-    
-    if (callback) {
-        setTimeout(callback, durationMs);
-    }
-}
-
-// Utility functions
-function updateStatus(message, type = 'info') {
-    const colors = {
-        info: '#e8f4fd',
-        success: '#e8f8ef',
-        error: '#fde8e8',
-        warning: '#fff3cd',
-        receiving: '#e8f8e8',
-        transmitting: '#fff3cd'
-    };
-    
-    statusDisplay.textContent = `Status: ${message}`;
-    statusDisplay.style.background = colors[type] || colors.info;
-}
-
-function logMessage(message) {
-    const timestamp = new Date().toLocaleTimeString();
-    logDisplay.innerHTML += `[${timestamp}] ${message}<br>`;
-    logDisplay.scrollTop = logDisplay.scrollHeight;
+    protocol.sendBits(protocol.stringToBinary(text));
 }
 
 // Clean up
