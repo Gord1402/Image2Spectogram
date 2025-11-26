@@ -17,179 +17,8 @@ let dataArray;
 let animationId;
 let spectrogramImage;
 
-
-class SimpleFSKProtocol {
-    constructor() {
-        this.FREQ_0 = 15000; 
-        this.FREQ_1 = 16000;  
-        this.FREQ_SYNC = 15500;
-        this.FREQ_SYNC2 = 16500;
-        this.DELTA_FREQ = [0, 100, -100, -200, 200]
-        
-        this.BIT_DURATION = 60; 
-        this.GAP = 120;
-
-        this.TRESH = 60
-        
-        this.bitBuffer = [];
-        this.isActive = false;
-        this.isOdd = false;
-        this.isOddSend = false;
-        this.lastActive = 0;
-    }
-
-    sample(dataArray){
-        const freqSync1 = this.getFreq(this.FREQ_SYNC, dataArray);
-        const freqSync2 = this.getFreq(this.FREQ_SYNC2, dataArray);
-
-        const freqSync = this.isOdd?freqSync2:freqSync1;
-
-        const freq0 = this.getFreq(this.FREQ_0, dataArray);
-        const freq1 = this.getFreq(this.FREQ_1, dataArray);
-        const currentTime = Date.now();
-
-
-        // if (freqSync1 > this.TRESH && freqSync2 > this.TRESH && (freq0 + freq1))
-
-        if (freqSync < this.TRESH && this.isActive) {
-            this.isActive = false;
-            this.isOdd = !this.isOdd;
-        }
-
-        // if (freqSync > this.TRESH && this.isActive && currentTime - this.lastActive > this.BIT_DURATION + this.GAP) 
-        //                 this.isActive = false;
-
-
-        if (freqSync > this.TRESH && !this.isActive) {
-            this.isActive = true;
-            this.lastActive = currentTime;
-            console.log("bit")
-            
-            if (freq0 > this.TRESH && freq1 > this.TRESH) {
-                dataDisplay.innerText = this.binaryToString(this.bitBuffer.join(""))
-                this.reset()
-            }
-
-            if (freq0 > this.TRESH) {
-                this.bitBuffer.push('0');
-                logDisplay.innerText = this.bitBuffer.join("")
-            } else if (freq1 > this.TRESH) {
-                this.bitBuffer.push('1');
-                logDisplay.innerText = this.bitBuffer.join("")
-            }
-        }
-
-    }
-
-    getFreq(frequency, dataArray){
-        const freqs = this.DELTA_FREQ.map((df) => dataArray[frequencyToBin(frequency + df)]);
-        const average = freqs.reduce((s, v) => s + v, 0) / freqs.length;
-
-        if (Math.min(freqs) / Math.max(freqs) > 0.4){
-            return 0.
-        }
-        // fsdfsdfsdfsdfsdfsfs
-        return average;
-    }
-
-    binaryToString(binaryStr) {
-        if (binaryStr.length % 8 !== 0) {
-            binaryStr += "0".repeat(8 - binaryStr.length % 8)
-        }
-        
-        const chunks = [];
-        for (let i = 0; i < binaryStr.length; i += 8) {
-            chunks.push(binaryStr.slice(i, i + 8));
-        }
-        
-        return chunks
-            .map(bin => String.fromCharCode(parseInt(bin, 2)))
-            .join('');
-    }
-
-
-    stringToBinary(str) {
-        return str
-            .split('')
-            .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
-            .join('');
-    }
-
-
-    async sendBits(binary){
-        this.isOddSend = false;
-        this.playTone(this.FREQ_0, this.BIT_DURATION)
-        this.playTone(this.FREQ_1, this.BIT_DURATION)
-        this.playTone(this.FREQ_SYNC2, this.BIT_DURATION)
-        await this.playTone(this.FREQ_SYNC, this.BIT_DURATION)
-        await new Promise((resolve)=>setTimeout(resolve, this.GAP));
-
-        let i = 0;
-        for (const bit of binary){
-            await this.sendBit(bit)
-        }
-
-        await new Promise((resolve)=>setTimeout(resolve, this.GAP));
-        this.playTone(this.FREQ_0, this.BIT_DURATION)
-        this.playTone(this.FREQ_1, this.BIT_DURATION)
-        this.playTone(this.FREQ_SYNC2, this.BIT_DURATION)
-        await this.playTone(this.FREQ_SYNC, this.BIT_DURATION)
-    }
-
-    async sendBit(bit){
-        this.playTone(this.isOddSend?this.FREQ_SYNC2:this.FREQ_SYNC, this.BIT_DURATION)
-        await this.playTone(bit == "0"?this.FREQ_0:this.FREQ_1, this.BIT_DURATION)
-        await new Promise((resolve)=>setTimeout(resolve, this.GAP));
-        this.isOddSend = !this.isOddSend;
-    }
-
-    async playTone(frequency, durationMs) {
-        let promise = null
-        for (const df of this.DELTA_FREQ){
-            promise = this.playToneSingle(frequency + df, durationMs);
-        }
-        await promise
-    }
-
-    async playToneSingle(frequency, durationMs) {
-        if (!audioContext) {
-            return;
-        }
-        
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = frequency;
-        oscillator.type = 'sine';
-        
-        const now = audioContext.currentTime;
-        const duration = durationMs / 1000;
-        
-        // Clean envelope
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(0.1, now + 0.01);
-        gainNode.gain.setValueAtTime(0.1, now + duration - 0.02);
-        gainNode.gain.linearRampToValueAtTime(0, now + duration - 0.01);
-        
-        oscillator.start(now);
-        oscillator.stop(now + duration);
-        
-        await new Promise((resolve)=>setTimeout(resolve, durationMs));
-    }
-    
-    reset() {
-        this.bitBuffer = [];
-        this.isOdd = false;
-    }
-}
-
-const protocol = new SimpleFSKProtocol();
-
 let dataDisplay, sendInput, sendButton, statusDisplay, logDisplay;
-
+const detector = new AudioWorkletChirpDetector()
 startButton.addEventListener('click', async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -227,7 +56,16 @@ startButton.addEventListener('click', async () => {
         startButton.style.display = 'none';
         drawSpectrogram(spectrogramCtx);
         drawFrequencyAxis()
-        startReceiver();
+        // startReceiver();
+
+        await detector.initialize()
+        detector.addTemplate('up', 1.0, 15000, 16000);
+        detector.addTemplate('down', 1.0, 16000, 15000);
+
+        detector.onDetection((detection) => {
+            console.log(detection);
+        });
+        const success = await detector.start(stream);
         
     } catch (err) {
         console.error('Error accessing microphone:', err);
@@ -397,7 +235,7 @@ function createInterface() {
     // Protocol info
     const protocolInfo = document.createElement('div');
     protocolInfo.style.cssText = 'font-size: 12px; color: #666; margin: 10px;';
-    protocolInfo.innerHTML = `Protocol: Simple FSK | Frequencies: ${protocol.FREQ_0}Hz (0), ${protocol.FREQ_1}Hz (1), ${protocol.FREQ_SYNC}Hz (sync)`;
+    // protocolInfo.innerHTML = `Protocol: Simple FSK | Frequencies: ${protocol.FREQ_0}Hz (0), ${protocol.FREQ_1}Hz (1), ${protocol.FREQ_SYNC}Hz (sync)`;
     
     sendContainer.appendChild(sendInput);
     sendContainer.appendChild(sendButton);
@@ -415,7 +253,9 @@ function createInterface() {
 async function sendData() {
     const text = sendInput.value.trim(); 
     sendInput.value = '';
-    protocol.sendBits(protocol.stringToBinary(text));
+    // protocol.sendBits(protocol.stringToBinary(text));
+    await detector.playTestChirp(1.0, 15000, 16000)
+    await detector.playTestChirp(1.0, 16000, 15000)
 }
 
 // Clean up
